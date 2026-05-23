@@ -1,10 +1,13 @@
-export default function Home() {
+type HealthResponse = { status: string };
+
+export default async function Home() {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/health`);
+  const { status } = (await res.json()) as HealthResponse;
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-black text-white">
-      <div className="flex flex-col items-center gap-4">
-        <h1 className="text-6xl font-bold tracking-tight">APEX</h1>
-        <p className="text-zinc-400 text-lg tracking-widest uppercase">Frontend</p>
-      </div>
+    <main>
+      <h1>Hello APEX</h1>
+      <p>Backend status: {status}</p>
     </main>
   );
 }
