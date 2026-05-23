@@ -1,3 +1,1 @@
-import type { Project } from '../types/project';
-
-export const projectsStore: Project[] = [];
+// Replaced by Prisma database queries. See src/lib/prisma.ts.

@@ -1,0 +1,22 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ProjectStatus {
+  active
+  paused
+  completed
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String        @default("")
+  status      ProjectStatus @default(active)
+  createdAt   DateTime      @default(now())
+}
