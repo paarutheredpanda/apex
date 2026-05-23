@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { errorHandler } from './middleware/errorHandler';
 import healthRoutes from './routes/health';
+import projectRoutes from './routes/projects';
 
 dotenv.config();
 
@@ -14,6 +15,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use('/health', healthRoutes);
+app.use('/projects', projectRoutes);
 
 app.use(errorHandler);
 
