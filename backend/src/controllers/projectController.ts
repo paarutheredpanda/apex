@@ -7,7 +7,8 @@ const VALID_STATUSES: ProjectStatus[] = ['active', 'paused', 'completed'];
 
 // Fixed Helper Function: Correctly returns string | null and closes its scope
 function requireUserId(req: Request, res: Response): string | null {
-  const auth = getAuth(req);
+  // Cast getAuth(req) as any to stop Clerk's strict union-type checks from breaking the build
+  const auth = getAuth(req) as any;
 
   if (!auth || !auth.userId) {
     res.status(401).json({ error: "Unauthorized" });
@@ -15,7 +16,7 @@ function requireUserId(req: Request, res: Response): string | null {
   }
   
   return auth.userId;
-} // <--- Added missing closing brace
+}
 
 export const getProjects = async (
   req: Request,

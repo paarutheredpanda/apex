@@ -23,5 +23,8 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0"
   }
 }
