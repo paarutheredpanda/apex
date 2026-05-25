@@ -15,8 +15,11 @@ enum ProjectStatus {
 
 model Project {
   id          String        @id @default(uuid())
+  userId      String
   name        String
   description String        @default("")
   status      ProjectStatus @default(active)
   createdAt   DateTime      @default(now())
+
+  @@index([userId])
 }
