@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth, useUser, UserButton } from '@clerk/nextjs';
 
 type ProjectStatus = 'active' | 'paused' | 'completed';
 
@@ -118,6 +119,9 @@ const inputStyle: React.CSSProperties = {
 };
 
 export default function Home() {
+  const { getToken } = useAuth();
+  const { user } = useUser();
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -131,17 +135,22 @@ export default function Home() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
   useEffect(() => {
-    fetch(`${apiUrl}/projects`)
-      .then((r) => r.json())
-      .then((data: Project[]) => {
+    async function loadProjects() {
+      try {
+        const token = await getToken();
+        const res = await fetch(`${apiUrl}/projects`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json() as Project[];
         setProjects(data);
-        setLoading(false);
-      })
-      .catch(() => {
+      } catch {
         setFetchError('Cannot reach backend at ' + apiUrl);
+      } finally {
         setLoading(false);
-      });
-  }, [apiUrl]);
+      }
+    }
+    loadProjects();
+  }, [apiUrl, getToken]);
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -151,9 +160,13 @@ export default function Home() {
     setFormError(null);
 
     try {
+      const token = await getToken();
       const res = await fetch(`${apiUrl}/projects`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({ name: name.trim(), description: description.trim(), status }),
       });
 
@@ -176,6 +189,7 @@ export default function Home() {
   }
 
   const isConnected = !loading && !fetchError;
+  const userLabel = user?.primaryEmailAddress?.emailAddress ?? user?.username ?? null;
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--ink)', display: 'flex', flexDirection: 'column' }}>
@@ -239,16 +253,30 @@ export default function Home() {
               PROJECTS
             </span>
           </div>
+
+          {/* User section */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
+            {userLabel && (
+              <span style={{ color: 'var(--muted)', fontSize: 10, letterSpacing: '0.1em' }}>
+                {userLabel.toUpperCase()}
+              </span>
+            )}
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: { width: 28, height: 28 },
+                },
+              }}
+            />
+          </div>
         </div>
       </header>
 
       {/* ── Main ── */}
       <main style={{ maxWidth: 820, width: '100%', margin: '0 auto', padding: '52px 48px', flex: 1 }}>
 
-        {/* Section label */}
         <SectionLabel text="PROJECTS" />
 
-        {/* Project list */}
         <div style={{ marginBottom: 64 }}>
           {loading && (
             <div style={{ padding: '32px 0', color: 'var(--muted)', fontSize: 12, letterSpacing: '0.1em', borderTop: '1px solid var(--border)' }}>
@@ -286,10 +314,8 @@ export default function Home() {
           )}
         </div>
 
-        {/* Section label */}
         <SectionLabel text="NEW PROJECT" />
 
-        {/* Create form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 14 }}>
             <Field label="NAME *">
@@ -366,7 +392,7 @@ export default function Home() {
         }}
       >
         <span style={{ color: 'var(--muted)', fontSize: 10, letterSpacing: '0.1em' }}>
-          APEX / IN-MEMORY STORE / v0.1
+          APEX / PRISMA + POSTGRESQL / v0.2
         </span>
         <span style={{ color: 'var(--muted)', fontSize: 10, letterSpacing: '0.1em' }}>
           {apiUrl}
