@@ -43,8 +43,202 @@ function StatusDot({ status }: { status: ProjectStatus }) {
   );
 }
 
-function ProjectRow({ project, index }: { project: Project; index: number }) {
+const inputStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  color: 'var(--text)',
+  fontFamily: 'inherit',
+  fontSize: 14,
+  outline: 'none',
+  width: '100%',
+  transition: 'border-color 0.15s',
+};
+
+const smallInputStyle: React.CSSProperties = {
+  padding: '7px 10px',
+  background: 'var(--surface)',
+  border: '1px solid var(--border)',
+  color: 'var(--text)',
+  fontFamily: 'inherit',
+  fontSize: 13,
+  outline: 'none',
+  width: '100%',
+};
+
+const ghostBtnStyle: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: 'var(--muted)',
+  fontSize: 10,
+  fontFamily: 'inherit',
+  letterSpacing: '0.1em',
+  cursor: 'pointer',
+  padding: 0,
+};
+
+interface ProjectRowProps {
+  project: Project;
+  index: number;
+  onUpdate: (updated: Project) => void;
+  onDelete: (id: string) => void;
+  getToken: () => Promise<string | null>;
+  apiUrl: string | undefined;
+}
+
+function ProjectRow({ project, index, onUpdate, onDelete, getToken, apiUrl }: ProjectRowProps) {
+  const [mode, setMode] = useState<'view' | 'edit' | 'confirm-delete'>('view');
+  const [editName, setEditName] = useState(project.name);
+  const [editDesc, setEditDesc] = useState(project.description);
+  const [editStatus, setEditStatus] = useState<ProjectStatus>(project.status);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  function startEdit() {
+    setEditName(project.name);
+    setEditDesc(project.description);
+    setEditStatus(project.status);
+    setRowError(null);
+    setMode('edit');
+  }
+
+  async function saveEdit() {
+    if (!editName.trim()) { setRowError('Name required'); return; }
+    setSaving(true);
+    setRowError(null);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiUrl}/projects/${project.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: editName.trim(), description: editDesc.trim(), status: editStatus }),
+      });
+      if (!res.ok) {
+        const data = await res.json() as { error: string };
+        setRowError(data.error ?? 'Failed to update');
+        return;
+      }
+      const updated = await res.json() as Project;
+      onUpdate(updated);
+      setMode('view');
+    } catch {
+      setRowError('Network error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmDelete() {
+    setDeleting(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${apiUrl}/projects/${project.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok && res.status !== 404) {
+        let msg = 'Failed to delete';
+        try { const d = await res.json() as { error: string }; msg = d.error ?? msg; } catch { /* ignore */ }
+        setRowError(msg);
+        setMode('view');
+        return;
+      }
+      onDelete(project.id);
+    } catch {
+      setRowError('Network error');
+      setMode('view');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  if (mode === 'edit') {
+    return (
+      <div
+        style={{
+          borderTop: '1px solid var(--border)',
+          padding: '20px 0',
+          animation: 'fadeUp 0.2s ease both',
+        }}
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr', gap: '0 20px' }}>
+          <span style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 500, paddingTop: 9, letterSpacing: '0.05em' }}>
+            {String(index + 1).padStart(3, '0')}
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: 10 }}>
+              <input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Project name"
+                autoFocus
+                style={{ ...smallInputStyle, fontFamily: 'var(--font-syne), sans-serif', fontWeight: 700, fontSize: 15 }}
+              />
+              <select
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value as ProjectStatus)}
+                style={smallInputStyle}
+              >
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="completed">Completed</option>
+              </select>
+            </div>
+            <input
+              value={editDesc}
+              onChange={(e) => setEditDesc(e.target.value)}
+              placeholder="Description (optional)"
+              style={smallInputStyle}
+            />
+            {rowError && (
+              <div style={{ padding: '7px 10px', border: '1px solid #7f1d1d', background: '#160808', color: '#f87171', fontSize: 11 }}>
+                {rowError}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={saveEdit}
+                disabled={saving}
+                style={{
+                  padding: '7px 18px',
+                  background: saving ? 'var(--surface-2)' : 'var(--amber)',
+                  color: saving ? 'var(--muted)' : 'var(--ink)',
+                  border: 'none',
+                  fontSize: 10,
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  letterSpacing: '0.12em',
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {saving ? 'SAVING...' : 'SAVE →'}
+              </button>
+              <button
+                onClick={() => { setMode('view'); setRowError(null); }}
+                disabled={saving}
+                style={{
+                  padding: '7px 14px',
+                  background: 'transparent',
+                  color: 'var(--muted)',
+                  border: '1px solid var(--border)',
+                  fontSize: 10,
+                  fontFamily: 'inherit',
+                  letterSpacing: '0.12em',
+                  cursor: 'pointer',
+                }}
+              >
+                CANCEL
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const { label, color } = STATUS[project.status];
+
   return (
     <div
       style={{
@@ -82,41 +276,68 @@ function ProjectRow({ project, index }: { project: Project; index: number }) {
             {project.description}
           </p>
         )}
-        <span style={{ color: 'var(--muted)', fontSize: 11, letterSpacing: '0.1em' }}>
-          {formatDate(project.createdAt)}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span style={{ color: 'var(--muted)', fontSize: 11, letterSpacing: '0.1em' }}>
+            {formatDate(project.createdAt)}
+          </span>
+          {rowError && (
+            <span style={{ color: '#f87171', fontSize: 11 }}>{rowError}</span>
+          )}
+        </div>
       </div>
 
-      <span
-        style={{
-          fontSize: 10,
-          fontWeight: 500,
-          letterSpacing: '0.12em',
-          color,
-          border: `1px solid ${color}33`,
-          background: `${color}0d`,
-          padding: '3px 8px',
-          whiteSpace: 'nowrap',
-          marginTop: 3,
-        }}
-      >
-        {label}
-      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, marginTop: 3 }}>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 500,
+            letterSpacing: '0.12em',
+            color,
+            border: `1px solid ${color}33`,
+            background: `${color}0d`,
+            padding: '3px 8px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {label}
+        </span>
+
+        {mode === 'confirm-delete' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#f87171', fontSize: 10, letterSpacing: '0.1em' }}>DELETE?</span>
+            <button
+              onClick={confirmDelete}
+              disabled={deleting}
+              style={{ ...ghostBtnStyle, color: '#f87171' }}
+            >
+              {deleting ? '...' : 'YES'}
+            </button>
+            <span style={{ color: 'var(--border)', fontSize: 10 }}>/</span>
+            <button
+              onClick={() => setMode('view')}
+              disabled={deleting}
+              style={ghostBtnStyle}
+            >
+              NO
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button onClick={startEdit} style={ghostBtnStyle}>
+              EDIT
+            </button>
+            <button
+              onClick={() => { setRowError(null); setMode('confirm-delete'); }}
+              style={ghostBtnStyle}
+            >
+              DEL
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  background: 'var(--surface)',
-  border: '1px solid var(--border)',
-  color: 'var(--text)',
-  fontFamily: 'inherit',
-  fontSize: 14,
-  outline: 'none',
-  width: '100%',
-  transition: 'border-color 0.15s',
-};
 
 export default function Home() {
   const { getToken } = useAuth();
@@ -141,9 +362,32 @@ export default function Home() {
         const res = await fetch(`${apiUrl}/projects`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const data = await res.json() as Project[];
-        setProjects(data);
+
+        let data: unknown = null;
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
+
+        if (!res.ok) {
+          const message =
+            data && typeof data === 'object' && 'error' in data && typeof data.error === 'string'
+              ? data.error
+              : `Failed to load projects (${res.status})`;
+          setProjects([]);
+          setFetchError(message);
+          return;
+        }
+
+        if (Array.isArray(data)) {
+          setProjects(data as Project[]);
+        } else {
+          setProjects([]);
+          setFetchError('Unexpected response from projects API.');
+        }
       } catch {
+        setProjects([]);
         setFetchError('Cannot reach backend at ' + apiUrl);
       } finally {
         setLoading(false);
@@ -151,6 +395,14 @@ export default function Home() {
     }
     loadProjects();
   }, [apiUrl, getToken]);
+
+  function handleUpdate(updated: Project) {
+    setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+  }
+
+  function handleDelete(id: string) {
+    setProjects((prev) => prev.filter((p) => p.id !== id));
+  }
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -254,7 +506,6 @@ export default function Home() {
             </span>
           </div>
 
-          {/* User section */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderLeft: '1px solid var(--border)', paddingLeft: 20 }}>
             {userLabel && (
               <span style={{ color: 'var(--muted)', fontSize: 10, letterSpacing: '0.1em' }}>
@@ -285,7 +536,7 @@ export default function Home() {
           )}
 
           {fetchError && (
-            <div style={{ marginTop: 0, padding: '14px 16px', border: '1px solid #7f1d1d', background: '#160808', color: '#f87171', fontSize: 12 }}>
+            <div style={{ padding: '14px 16px', border: '1px solid #7f1d1d', background: '#160808', color: '#f87171', fontSize: 12 }}>
               {fetchError}
             </div>
           )}
@@ -306,7 +557,15 @@ export default function Home() {
           )}
 
           {projects.map((project, i) => (
-            <ProjectRow key={project.id} project={project} index={i} />
+            <ProjectRow
+              key={project.id}
+              project={project}
+              index={i}
+              onUpdate={handleUpdate}
+              onDelete={handleDelete}
+              getToken={getToken}
+              apiUrl={apiUrl}
+            />
           ))}
 
           {projects.length > 0 && (
@@ -392,7 +651,7 @@ export default function Home() {
         }}
       >
         <span style={{ color: 'var(--muted)', fontSize: 10, letterSpacing: '0.1em' }}>
-          APEX / PRISMA + POSTGRESQL / v0.2
+          APEX / PRISMA + POSTGRESQL / v0.3
         </span>
         <span style={{ color: 'var(--muted)', fontSize: 10, letterSpacing: '0.1em' }}>
           {apiUrl}

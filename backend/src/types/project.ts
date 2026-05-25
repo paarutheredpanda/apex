@@ -7,3 +7,9 @@ export type CreateProjectBody = {
   description?: string;
   status?: ProjectStatus;
 };
+
+export type UpdateProjectBody = {
+  name?: string;
+  description?: string;
+  status?: ProjectStatus;
+};
