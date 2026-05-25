@@ -5,14 +5,17 @@ import type { CreateProjectBody, UpdateProjectBody, ProjectStatus } from '../typ
 
 const VALID_STATUSES: ProjectStatus[] = ['active', 'paused', 'completed'];
 
+// Fixed Helper Function: Correctly returns string | null and closes its scope
 function requireUserId(req: Request, res: Response): string | null {
-  const { userId } = getAuth(req);
-  if (!userId) {
-    res.status(401).json({ error: 'Unauthorized' });
+  const auth = getAuth(req);
+
+  if (!auth || !auth.userId) {
+    res.status(401).json({ error: "Unauthorized" });
     return null;
   }
-  return userId;
-}
+  
+  return auth.userId;
+} // <--- Added missing closing brace
 
 export const getProjects = async (
   req: Request,

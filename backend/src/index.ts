@@ -19,10 +19,15 @@ app.use(
   }),
 );
 
-app.use(clerkMiddleware());
+app.get("/", (req: any, res: any) => {
+  res.json({ service: "apex-backend", status: "ok" });
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.get("/", (_req, res) => {
+  res.json({ service: "apex-backend", status: "ok" });
+});
 app.use('/health', healthRoutes);
 app.use('/projects', projectRoutes);
 
