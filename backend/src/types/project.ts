@@ -1,15 +1,13 @@
-import type { ProjectStatus } from '../generated/prisma/enums';
+export type ProjectStatus = "active" | "paused" | "completed";
 
-export type { ProjectStatus };
-
-export type CreateProjectBody = {
-  name: string;
-  description?: string;
-  status?: ProjectStatus;
-};
-
-export type UpdateProjectBody = {
+export interface CreateProjectBody {
   name?: string;
   description?: string;
   status?: ProjectStatus;
-};
+}
+
+export interface UpdateProjectBody {
+  name?: string;
+  description?: string;
+  status?: ProjectStatus;
+}
