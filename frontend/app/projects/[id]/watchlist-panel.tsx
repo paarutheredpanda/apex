@@ -18,6 +18,14 @@ interface WatchlistPanelProps {
   projectId: string;
 }
 
+type QuoteState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'ok'; price: number; currency: string; change: number; changePercent: number; marketTime: number | null }
+  | { status: 'error'; message: string };
+
+type QuoteMap = Record<string, QuoteState>;
+
 const SYMBOL_PATTERN = /^[A-Z][A-Z0-9.-]{0,9}$/;
 
 function parseApiError(data: unknown, fallback: string): string {
@@ -25,6 +33,68 @@ function parseApiError(data: unknown, fallback: string): string {
     return data.error;
   }
   return fallback;
+}
+
+function formatCurrency(price: number, currency: string): string {
+  const symbol = currency === 'USD' ? '$' : currency === 'EUR' ? '€' : currency === 'GBP' ? '£' : '';
+  const prefix = symbol || `${currency} `;
+  return `${prefix}${price.toFixed(2)}`;
+}
+
+function QuoteCell({ state }: { state: QuoteState | undefined }) {
+  if (!state || state.status === 'idle') {
+    return <div style={{ minWidth: 80 }} />;
+  }
+
+  if (state.status === 'loading') {
+    return (
+      <div style={{ textAlign: 'right', minWidth: 80 }}>
+        <span style={{ color: 'var(--muted)', fontSize: 13, fontFamily: 'var(--font-ibm), monospace', letterSpacing: '0.1em' }}>
+          ···
+        </span>
+      </div>
+    );
+  }
+
+  if (state.status === 'error') {
+    return (
+      <div style={{ textAlign: 'right', minWidth: 80 }}>
+        <span style={{ color: '#f87171', fontSize: 10, letterSpacing: '0.08em' }} title={state.message}>
+          N/A
+        </span>
+      </div>
+    );
+  }
+
+  const { price, currency, change, changePercent } = state;
+  const changeColor = change > 0 ? '#3fb96e' : change < 0 ? '#f87171' : 'var(--muted)';
+  const changeSign = change > 0 ? '+' : '';
+
+  return (
+    <div style={{ textAlign: 'right', minWidth: 80 }}>
+      <div
+        style={{
+          color: 'var(--text)',
+          fontFamily: 'var(--font-ibm), monospace',
+          fontSize: 14,
+          fontWeight: 500,
+          letterSpacing: '-0.01em',
+        }}
+      >
+        {formatCurrency(price, currency)}
+      </div>
+      <div
+        style={{
+          color: changeColor,
+          fontSize: 11,
+          fontFamily: 'var(--font-ibm), monospace',
+          letterSpacing: '0.02em',
+        }}
+      >
+        {changeSign}{changePercent.toFixed(2)}%
+      </div>
+    </div>
+  );
 }
 
 export function WatchlistPanel({ apiUrl, getToken, projectId }: WatchlistPanelProps) {
@@ -35,8 +105,46 @@ export function WatchlistPanel({ apiUrl, getToken, projectId }: WatchlistPanelPr
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [quotes, setQuotes] = useState<QuoteMap>({});
+  const [refreshing, setRefreshing] = useState(false);
+
   const normalizedSymbol = useMemo(() => symbol.trim().toUpperCase(), [symbol]);
   const canSubmit = SYMBOL_PATTERN.test(normalizedSymbol) && !submitting;
+
+  async function fetchQuote(sym: string): Promise<void> {
+    setQuotes((prev) => ({ ...prev, [sym]: { status: 'loading' } }));
+    try {
+      const res = await fetch(`${apiUrl}/stocks/quote/${sym}`);
+      const d = await res.json() as Record<string, unknown>;
+      setQuotes((prev) => ({
+        ...prev,
+        [sym]: res.ok
+          ? {
+              status: 'ok',
+              price: d.price as number,
+              currency: d.currency as string,
+              change: d.change as number,
+              changePercent: d.changePercent as number,
+              marketTime: d.marketTime as number | null,
+            }
+          : { status: 'error', message: parseApiError(d, 'Failed to fetch quote') },
+      }));
+    } catch {
+      setQuotes((prev) => ({ ...prev, [sym]: { status: 'error', message: 'Network error' } }));
+    }
+  }
+
+  async function fetchQuotesForSymbols(symbols: string[]): Promise<void> {
+    if (symbols.length === 0) return;
+    await Promise.allSettled(symbols.map(fetchQuote));
+  }
+
+  async function handleRefresh() {
+    if (refreshing || items.length === 0) return;
+    setRefreshing(true);
+    await fetchQuotesForSymbols(items.map((i) => i.symbol));
+    setRefreshing(false);
+  }
 
   useEffect(() => {
     let alive = true;
@@ -67,7 +175,11 @@ export function WatchlistPanel({ apiUrl, getToken, projectId }: WatchlistPanelPr
         }
 
         if (Array.isArray(data)) {
-          setItems(data as WatchlistItem[]);
+          const loaded = data as WatchlistItem[];
+          setItems(loaded);
+          if (loaded.length > 0) {
+            void fetchQuotesForSymbols(loaded.map((i) => i.symbol));
+          }
         } else {
           setItems([]);
           setError('Unexpected response from watchlist API.');
@@ -124,8 +236,10 @@ export function WatchlistPanel({ apiUrl, getToken, projectId }: WatchlistPanelPr
         return;
       }
 
-      setItems((prev) => [data as WatchlistItem, ...prev]);
+      const newItem = data as WatchlistItem;
+      setItems((prev) => [newItem, ...prev]);
       setSymbol('');
+      void fetchQuote(newItem.symbol);
     } catch {
       setError('Network error while adding symbol.');
     } finally {
@@ -222,48 +336,80 @@ export function WatchlistPanel({ apiUrl, getToken, projectId }: WatchlistPanelPr
       )}
 
       {items.length > 0 && (
-        <div style={{ marginTop: 18, borderTop: '1px solid var(--border)' }}>
-          {items.map((item) => (
-            <div
-              key={item.id}
+        <div style={{ marginTop: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={refreshing}
               style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1fr) auto',
-                gap: 12,
-                alignItems: 'center',
-                padding: '12px 0',
-                borderBottom: '1px solid var(--border)',
+                background: 'none',
+                border: '1px solid var(--border)',
+                color: 'var(--muted)',
+                fontFamily: 'inherit',
+                fontSize: 10,
+                letterSpacing: '0.12em',
+                padding: '4px 10px',
+                cursor: refreshing ? 'not-allowed' : 'pointer',
               }}
             >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ color: 'var(--text)', fontFamily: 'var(--font-syne), sans-serif', fontSize: 17, fontWeight: 750 }}>
-                  {item.symbol}
-                </div>
-                {item.name && (
-                  <div style={{ color: 'var(--muted)', fontSize: 11, overflowWrap: 'anywhere' }}>
-                    {item.name}
-                  </div>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => removeItem(item.id)}
-                disabled={removingId === item.id}
+              {refreshing ? 'REFRESHING...' : '↻ REFRESH'}
+            </button>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border)' }}>
+            {items.map((item) => (
+              <div
+                key={item.id}
                 style={{
-                  background: 'transparent',
-                  border: '1px solid var(--border)',
-                  color: removingId === item.id ? 'var(--muted)' : '#f87171',
-                  fontFamily: 'inherit',
-                  fontSize: 10,
-                  letterSpacing: '0.12em',
-                  padding: '7px 9px',
-                  cursor: removingId === item.id ? 'not-allowed' : 'pointer',
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) auto auto',
+                  gap: 12,
+                  alignItems: 'center',
+                  padding: '12px 0',
+                  borderBottom: '1px solid var(--border)',
                 }}
               >
-                {removingId === item.id ? '...' : 'REMOVE'}
-              </button>
-            </div>
-          ))}
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      color: 'var(--text)',
+                      fontFamily: 'var(--font-syne), sans-serif',
+                      fontSize: 17,
+                      fontWeight: 750,
+                    }}
+                  >
+                    {item.symbol}
+                  </div>
+                  {item.name && (
+                    <div style={{ color: 'var(--muted)', fontSize: 11, overflowWrap: 'anywhere' }}>
+                      {item.name}
+                    </div>
+                  )}
+                </div>
+
+                <QuoteCell state={quotes[item.symbol]} />
+
+                <button
+                  type="button"
+                  onClick={() => removeItem(item.id)}
+                  disabled={removingId === item.id}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--border)',
+                    color: removingId === item.id ? 'var(--muted)' : '#f87171',
+                    fontFamily: 'inherit',
+                    fontSize: 10,
+                    letterSpacing: '0.12em',
+                    padding: '7px 9px',
+                    cursor: removingId === item.id ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {removingId === item.id ? '...' : 'REMOVE'}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

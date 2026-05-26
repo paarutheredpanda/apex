@@ -5,6 +5,7 @@ import { clerkMiddleware } from "@clerk/express";
 import { errorHandler } from "./middleware/errorHandler";
 import healthRoutes from "./routes/health";
 import projectRoutes from "./routes/projects";
+import stockRoutes from "./routes/stocks";
 
 dotenv.config();
 
@@ -38,7 +39,8 @@ function conditionalClerkMiddleware(
 ): void {
   const cleanPath = req.originalUrl.split("?")[0].replace(/\/+$/, "");
   const isPublicGet =
-    req.method === "GET" && /^\/projects(\/[^/]+)?$/.test(cleanPath);
+    req.method === "GET" &&
+    /^(\/projects(\/[^/]+)?|\/stocks\/quote\/[^/]+)$/.test(cleanPath);
 
   if (isPublicGet) {
     next();
@@ -57,6 +59,7 @@ app.get("/", (_req, res) => {
 });
 
 app.use("/projects", projectRoutes);
+app.use("/stocks", stockRoutes);
 
 app.use(errorHandler);
 
