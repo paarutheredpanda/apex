@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth, useUser, UserButton } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 
 type ProjectStatus = 'active' | 'paused' | 'completed';
 
@@ -80,13 +81,14 @@ const ghostBtnStyle: React.CSSProperties = {
 interface ProjectRowProps {
   project: Project;
   index: number;
+  onOpen: (id: string) => void;
   onUpdate: (updated: Project) => void;
   onDelete: (id: string) => void;
   getToken: () => Promise<string | null>;
   apiUrl: string | undefined;
 }
 
-function ProjectRow({ project, index, onUpdate, onDelete, getToken, apiUrl }: ProjectRowProps) {
+function ProjectRow({ project, index, onOpen, onUpdate, onDelete, getToken, apiUrl }: ProjectRowProps) {
   const [mode, setMode] = useState<'view' | 'edit' | 'confirm-delete'>('view');
   const [editName, setEditName] = useState(project.name);
   const [editDesc, setEditDesc] = useState(project.description);
@@ -241,6 +243,15 @@ function ProjectRow({ project, index, onUpdate, onDelete, getToken, apiUrl }: Pr
 
   return (
     <div
+      onClick={() => onOpen(project.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen(project.id);
+        }
+      }}
+      role="button"
+      tabIndex={0}
       style={{
         borderTop: '1px solid var(--border)',
         padding: '22px 0',
@@ -249,6 +260,7 @@ function ProjectRow({ project, index, onUpdate, onDelete, getToken, apiUrl }: Pr
         gap: '0 20px',
         alignItems: 'start',
         animation: `fadeUp 0.35s ease ${index * 60}ms both`,
+        cursor: 'pointer',
       }}
     >
       <span style={{ color: 'var(--muted)', fontSize: 11, fontWeight: 500, paddingTop: 4, letterSpacing: '0.05em' }}>
@@ -286,7 +298,10 @@ function ProjectRow({ project, index, onUpdate, onDelete, getToken, apiUrl }: Pr
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, marginTop: 3 }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10, marginTop: 3 }}
+      >
         <span
           style={{
             fontSize: 10,
@@ -342,6 +357,7 @@ function ProjectRow({ project, index, onUpdate, onDelete, getToken, apiUrl }: Pr
 export default function Home() {
   const { getToken } = useAuth();
   const { user } = useUser();
+  const router = useRouter();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -561,6 +577,7 @@ export default function Home() {
               key={project.id}
               project={project}
               index={i}
+              onOpen={(id) => router.push(`/projects/${id}`)}
               onUpdate={handleUpdate}
               onDelete={handleDelete}
               getToken={getToken}
