@@ -40,7 +40,7 @@ function conditionalClerkMiddleware(
   const cleanPath = req.originalUrl.split("?")[0].replace(/\/+$/, "");
   const isPublicGet =
     req.method === "GET" &&
-    /^(\/projects(\/[^/]+)?|\/stocks\/quote\/[^/]+)$/.test(cleanPath);
+    /^(\/projects(\/[^/]+)?|\/stocks\/(quote|history)\/[^/]+)$/.test(cleanPath);
 
   if (isPublicGet) {
     next();

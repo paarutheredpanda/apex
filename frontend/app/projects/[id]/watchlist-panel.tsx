@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
+import Link from 'next/link';
 
 interface WatchlistItem {
   id: string;
@@ -371,16 +372,18 @@ export function WatchlistPanel({ apiUrl, getToken, projectId }: WatchlistPanelPr
                 }}
               >
                 <div style={{ minWidth: 0 }}>
-                  <div
+                  <Link
+                    href={`/projects/${projectId}/stocks/${item.symbol}`}
                     style={{
                       color: 'var(--text)',
                       fontFamily: 'var(--font-syne), sans-serif',
                       fontSize: 17,
                       fontWeight: 750,
+                      textDecoration: 'none',
                     }}
                   >
                     {item.symbol}
-                  </div>
+                  </Link>
                   {item.name && (
                     <div style={{ color: 'var(--muted)', fontSize: 11, overflowWrap: 'anywhere' }}>
                       {item.name}

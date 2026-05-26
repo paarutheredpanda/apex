@@ -4,6 +4,8 @@ const SYMBOL_RE = /^[A-Z][A-Z0-9.-]{0,9}$/;
 
 interface YahooQuoteResult {
   symbol: string;
+  shortName?: string;
+  longName?: string;
   regularMarketPrice: number;
   regularMarketChange: number;
   regularMarketChangePercent: number;
@@ -19,6 +21,7 @@ interface YahooResponse {
 
 export interface StockQuote {
   symbol: string;
+  name: string | null;
   price: number;
   currency: string;
   change: number;
@@ -51,6 +54,7 @@ async function fetchYahooQuote(symbol: string): Promise<StockQuote> {
 
   return {
     symbol: result.symbol,
+    name: result.shortName ?? result.longName ?? null,
     price: result.regularMarketPrice,
     currency: result.currency ?? 'USD',
     change: result.regularMarketChange ?? 0,
