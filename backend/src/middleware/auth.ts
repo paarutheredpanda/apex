@@ -7,8 +7,7 @@ export const requireAuth = clerkRequireAuth();
 // Helper to safely get userId (Fixed: safely checks for property presence)
 export const getUserId = (req: Request): string | null => {
     try {
-        const auth = getAuth(req);
-        // Safely check if userId exists on the returned object
+const auth = getAuth(req as any);        // Safely check if userId exists on the returned object
         if (auth && 'userId' in auth && auth.userId) {
             return auth.userId;
         }
@@ -36,8 +35,7 @@ declare global {
 
 // Better typed middleware (Fixed: safely reads userId from auth union types)
 export const currentUser = (req: Request, res: Response, next: NextFunction) => {
-    const auth = getAuth(req);
-    
+const auth = getAuth(req as any);    
     // Check if auth exists and has a userId before mapping it to req.userId
     if (auth && 'userId' in auth) {
         req.userId = auth.userId ?? null;
