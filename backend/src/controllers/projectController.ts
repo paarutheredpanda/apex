@@ -46,13 +46,14 @@ export const getProjectById = async (
     const userId = requireUserId(req, res);
     if (!userId) return;
 
-    const project = await prisma.project.findUnique({ where: { id: req.params.id } });
+    const project = await prisma.project.findFirst({
+      where: {
+        id: req.params.id,
+        userId,
+      },
+    });
     if (!project) {
       res.status(404).json({ error: 'Project not found' });
-      return;
-    }
-    if (project.userId !== userId) {
-      res.status(403).json({ error: 'Forbidden' });
       return;
     }
     res.json(project);
