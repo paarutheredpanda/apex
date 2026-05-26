@@ -24,8 +24,22 @@ app.use(
 // Health check before Clerk so it never depends on auth context
 app.use("/health", healthRoutes);
 
-// Initializes Clerk auth context on every request — required for getAuth() and requireAuth()
-app.use(clerkMiddleware() as any);
+// FIXED: Conditionally apply Clerk so it doesn't intercept public GET requests
+app.use((req, res, next) => {
+  // Normalize path to handle potential trailing slashes safely
+  const normalPath = req.path.replace(/\/$/, "");
+  
+  if (
+    req.method === "GET" && 
+    (normalPath === "/projects" || normalPath.startsWith("/projects/"))
+  ) {
+    return next(); // Skip global Clerk check for public project viewing
+  }
+  
+  // Run Clerk context exactly like before for everything else
+  return (clerkMiddleware() as any)(req, res, next);
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
