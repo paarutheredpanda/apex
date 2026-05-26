@@ -15,9 +15,12 @@ import {
 
 const router = Router();
 
-// PROTECTED ROUTES (Only logged-in users can read or modify their own data)
-router.get('/', requireAuth as any, getProjects);
-router.get('/:id', requireAuth as any, getProjectById);
+// Public GET routes — Clerk bypass in index.ts prevents 302 redirect.
+// Controller still returns 401 JSON if no valid auth token is present.
+router.get('/', getProjects);
+router.get('/:id', getProjectById);
+
+// All write routes and watchlist routes require full Clerk auth
 router.get('/:projectId/watchlist', requireAuth as any, getWatchlist);
 router.post('/', requireAuth as any, createProject);
 router.post('/:projectId/watchlist', requireAuth as any, createWatchlistItem);

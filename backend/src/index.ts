@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { clerkMiddleware } from "@clerk/express";
@@ -24,22 +24,31 @@ app.use(
 // Health check before Clerk so it never depends on auth context
 app.use("/health", healthRoutes);
 
-// FIXED: Conditionally apply Clerk so it doesn't intercept public GET requests
-app.use((req, res, next) => {
-  // Normalize path to handle potential trailing slashes safely
-  const normalPath = req.path.replace(/\/$/, "");
-  
-  if (
-    req.method === "GET" && 
-    (normalPath === "/projects" || normalPath.startsWith("/projects/"))
-  ) {
-    return next(); // Skip global Clerk check for public project viewing
-  }
-  
-  // Run Clerk context exactly like before for everything else
-  return (clerkMiddleware() as any)(req, res, next);
-});
+// Created once — not on every request (avoids middleware instance leak)
+const clerkHandler = clerkMiddleware() as any;
 
+// Bypass Clerk for public GET /projects and GET /projects/:id only.
+// This prevents the dev-browser 302 redirect for unauthenticated requests.
+// Watchlist routes (/projects/:id/watchlist), POST, PATCH, DELETE all still
+// go through full Clerk auth context initialization.
+function conditionalClerkMiddleware(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  const cleanPath = req.originalUrl.split("?")[0].replace(/\/+$/, "");
+  const isPublicGet =
+    req.method === "GET" && /^\/projects(\/[^/]+)?$/.test(cleanPath);
+
+  if (isPublicGet) {
+    next();
+    return;
+  }
+
+  clerkHandler(req, res, next);
+}
+
+app.use(conditionalClerkMiddleware);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
