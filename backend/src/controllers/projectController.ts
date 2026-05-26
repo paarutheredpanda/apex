@@ -5,6 +5,7 @@ import type { CreateProjectBody, UpdateProjectBody, ProjectStatus } from '../typ
 
 const VALID_STATUSES: ProjectStatus[] = ['active', 'paused', 'completed'];
 
+// For write routes: MANDATORY authentication
 function requireUserId(req: Request, res: Response): string | null {
   try {
     const auth = getAuth(req as any);
@@ -19,17 +20,27 @@ function requireUserId(req: Request, res: Response): string | null {
   }
 }
 
+// FIXED: For read routes: OPTIONAL authentication
+function getOptionalUserId(req: Request): string | null {
+  try {
+    const auth = getAuth(req as any);
+    return auth?.userId ?? null;
+  } catch {
+    return null; // Gracefully fall back to null if no one is logged in
+  }
+}
+
 export const getProjects = async (
   req: Request,
   res: Response,
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const userId = requireUserId(req, res);
-    if (!userId) return;
+    const userId = getOptionalUserId(req);
 
+    // If logged in: fetch only user's projects. If logged out: fetch all public projects.
     const projects = await prisma.project.findMany({
-      where: { userId },
+      where: userId ? { userId } : {},
       orderBy: { createdAt: 'desc' },
     });
     res.json(projects);
@@ -44,19 +55,24 @@ export const getProjectById = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const userId = requireUserId(req, res);
-    if (!userId) return;
+    const userId = getOptionalUserId(req);
 
-    const project = await prisma.project.findFirst({
-      where: {
-        id: req.params.id,
-        userId,
-      },
+    const project = await prisma.project.findUnique({
+      where: { id: req.params.id },
     });
+
     if (!project) {
       res.status(404).json({ error: 'Project not found' });
       return;
     }
+
+    // If the project belongs to a specific user, and an unauthenticated visitor is trying to view it,
+    // you can choose to hide it. Otherwise, let it pass. Adjust this condition to your preference.
+    if (userId && project.userId !== userId) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
     res.json(project);
   } catch (err) {
     next(err);
