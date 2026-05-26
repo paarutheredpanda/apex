@@ -380,6 +380,7 @@ export function WatchlistPanel({ apiUrl, getToken, projectId }: WatchlistPanelPr
                       fontSize: 17,
                       fontWeight: 750,
                       textDecoration: 'none',
+                      cursor: 'pointer',
                     }}
                   >
                     {item.symbol}
